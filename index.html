@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Form Registrasi</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface"></script>
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: #f4f4f4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            width: 320px;
+            text-align: center;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:disabled {
+            background: gray;
+            cursor: not-allowed;
+        }
+        .error {
+            color: red;
+            font-size: 14px;
+            display: none;
+        }
+        #preview {
+            width: 100px;
+            height: 100px;
+            object-fit: cover;
+            border-radius: 50%;
+            display: block;
+            margin: 10px auto;
+            position: relative;
+        }
+        .face-box {
+            position: absolute;
+            border: 2px solid red;
+            background: rgba(255, 0, 0, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Registrasi User</h2>
+        <form id="registerForm">
+            <input type="text" id="name" placeholder="Nama Lengkap" required oninput="this.value = this.value.replace(/\b\w/g, char => char.toUpperCase())">
+            <input type="text" id="username" placeholder="Username" required minlength="3" maxlength="20" pattern="^[a-z0-9]+$" oninput="this.value = this.value.toLowerCase().replace(/[^a-z0-9]/g, '')">
+            <input type="password" id="password" placeholder="Password" required minlength="6" maxlength="20" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{6,20}" title="Password harus mengandung minimal satu huruf kecil, satu huruf besar, satu angka, dan satu karakter spesial">
+            <input type="tel" id="whatsapp" placeholder="Nomor WhatsApp" required minlength="11" maxlength="14" oninput="this.value = this.value.replace(/^0+/, '').replace(/[^0-9]/g, ''); if(!this.value.startsWith('62')) this.value = '62' + this.value">
+            <input type="file" id="image" accept="image/jpeg" required>
+            <div style="position: relative; display: inline-block;">
+                <img id="preview" src="#" alt="Preview" style="display:none;">
+            </div>
+            <p class="error" id="errorMsg"></p>
+            <button type="submit" id="submitBtn" disabled>Daftar</button>
+        </form>
+    </div>
+
+    <script>
+        async function detectFace(imageElement, canvas) {
+            const model = await blazeface.load();
+            const predictions = await model.estimateFaces(imageElement, false);
+            
+            const ctx = canvas.getContext('2d');
+            canvas.width = imageElement.width;
+            canvas.height = imageElement.height;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            predictions.forEach(pred => {
+                const [x, y, width, height] = pred.topLeft.concat(pred.bottomRight);
+                ctx.strokeStyle = 'red';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x, y, width - x, height - y);
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
+                ctx.fillRect(x, y, width - x, height - y);
+            });
+            
+            return predictions.length > 0;
+        }
+
+        document.getElementById('image').addEventListener('change', async function(event) {
+            const file = event.target.files[0];
+            const errorMsg = document.getElementById('errorMsg');
+            const submitBtn = document.getElementById('submitBtn');
+            const preview = document.getElementById('preview');
+            const canvas = document.getElementById('canvas');
+            
+            if (file) {
+                if (!file.type.includes('jpeg')) {
+                    errorMsg.textContent = 'Hanya file JPG yang diperbolehkan!';
+                    errorMsg.style.display = 'block';
+                    event.target.value = '';
+                    submitBtn.disabled = true;
+                    return;
+                }
+                if (file.size < 50000 || file.size > 500000) {
+                    errorMsg.textContent = 'Ukuran gambar harus antara 50KB - 500KB!';
+                    errorMsg.style.display = 'block';
+                    event.target.value = '';
+                    submitBtn.disabled = true;
+                    return;
+                }
+                
+                errorMsg.style.display = 'none';
+                const reader = new FileReader();
+                reader.onload = async function(e) {
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                    
+                    const img = new Image();
+                    img.src = e.target.result;
+                    img.onload = async function() {
+                        const faceDetected = await detectFace(img, canvas);
+                        if (faceDetected) {
+                            errorMsg.style.display = 'none';
+                            submitBtn.disabled = false;
+                        } else {
+                            errorMsg.textContent = 'Muka tidak terdeteksi, silakan pilih gambar lain!';
+                            errorMsg.style.display = 'block';
+                            submitBtn.disabled = true;
+                        }
+                    }
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+    </script>
+</body>
+</html>
